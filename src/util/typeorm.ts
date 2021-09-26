@@ -1,5 +1,4 @@
 import { FindOneOptions } from 'typeorm/find-options/FindOneOptions';
-import { getConnection } from 'typeorm';
 import { ValidationError } from 'yup';
 
 import { User } from '@/entities/User';
@@ -12,32 +11,25 @@ const entities: { [key: string]: EntityConstructor } = { User };
 
 export const getData = async <T extends EntityConstructor>(
     Constructor: T,
-    userId?: number | string,
-    orderBy?: 'ASC' | 'DESC' | undefined,
+    options?: FindOneOptions,
 ): Promise<InstanceType<T>[]> => {
-    let query = await getConnection()
-        .createQueryBuilder()
-        .select('entities')
-        .from(Constructor, 'entities');
-
-    if (userId) {
-        query.where('"entities"."userId" = :userId', { userId });
-    }
-
-    if (orderBy) {
-        query.orderBy('"entities"."date"', orderBy);
-    }
-    let data = await query.getMany();
+    let data = await Constructor.find(options);
     return data as InstanceType<T>[];
 };
 
 export const findEntityOrThrow = async <T extends EntityConstructor>(
     Constructor: T,
-    id: number | string,
+    id?: number | string,
     options?: FindOneOptions,
+    throwError = true,
 ): Promise<InstanceType<T>> => {
-    const instance = await Constructor.findOne(id, options);
-    if (!instance) {
+    let instance;
+    if (id) {
+        instance = await Constructor.findOne(id, options);
+    } else {
+        instance = await Constructor.findOne(options);
+    }
+    if (!instance && throwError) {
         throw new Error(`${Constructor.name} Not Found`);
     }
     return instance;
@@ -80,13 +72,15 @@ export const updateEntity = async <T extends EntityConstructor>(
 
 export const removeEntity = async <T extends EntityConstructor>(
     Constructor: T,
-    id: number | string,
+    id?: number | string,
+    findOptions?: FindOneOptions,
     hard?: boolean,
 ): Promise<InstanceType<T>> => {
-    const instance = await findEntityOrThrow(Constructor, id);
-    if (hard) await instance.remove();
+    const instance = await findEntityOrThrow(Constructor, id, findOptions);
+    let instanceCopy = Object.assign({}, instance);
+    if (hard || !('deleted' in Constructor)) await instance.remove();
     else await instance.softRemove();
-    return instance;
+    return instanceCopy;
 };
 
 export const formatYupError = (err: ValidationError) => {
