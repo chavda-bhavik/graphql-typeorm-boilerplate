@@ -3,6 +3,7 @@ import { ValidationError } from 'yup';
 
 import { User } from '@/entities/User';
 import { FieldError } from '@/resolvers/SharedTypes';
+import { RegularExpresssions } from '@/constants';
 
 type EntityConstructor = typeof User;
 type EntityInstance = User;
@@ -93,4 +94,25 @@ export const formatYupError = (err: ValidationError) => {
     });
 
     return errors;
+};
+
+export const validEmail = async <T extends EntityConstructor>(
+    Constructor: T,
+    email: string,
+): Promise<FieldError | undefined> => {
+    let error: FieldError | undefined;
+    if (!RegularExpresssions.email.test(email))
+        error = {
+            message: 'Email is not valid',
+            field: 'email',
+        };
+    else {
+        let count = await Constructor.count({ where: { email: email } });
+        if (count > 0)
+            error = {
+                message: 'Email is already registered',
+                field: 'email',
+            };
+    }
+    return error;
 };

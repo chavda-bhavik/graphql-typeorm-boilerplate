@@ -1,13 +1,23 @@
-import { InputType, Field } from 'type-graphql';
+import { User } from '@/entities/User';
+import { InputType, Field, ObjectType } from 'type-graphql';
 
 @InputType()
 export class UserInputType {
-    @Field({ nullable: true })
-    firstName?: string;
+    @Field()
+    firstName: string;
 
-    @Field({ nullable: true })
-    lastName?: string;
+    @Field()
+    lastName: string;
 
-    @Field({ nullable: true })
-    email?: string;
+    @Field()
+    email: string;
+
+    @Field()
+    password: string;
+}
+
+@ObjectType()
+export class LoginResponseType {
+    @Field(() => User, { nullable: true })
+    entity?: User;
 }
