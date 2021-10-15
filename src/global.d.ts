@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
-interface sessionStore {
-    userId?: number;
+import { User } from './entities';
+interface cookiesStore {
+    token?: string;
 }
 export type MyContext = {
-    req: Request & { session: sessionStore };
+    req: Request & { cookies: cookiesStore };
     res: Response;
+    user: User;
+};
+
+export type TokenDecoded = {
+    userId: number;
 };

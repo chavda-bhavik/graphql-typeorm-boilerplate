@@ -1,7 +1,6 @@
-import { Arg, Ctx, Mutation, Query, Resolver } from 'type-graphql';
+import { Arg, Ctx, Mutation, Query, Resolver, UseMiddleware } from 'type-graphql';
 import bcrypt from 'bcryptjs';
-
-import { User } from '@/entities/User';
+import { sign } from 'jsonwebtoken';
 import {
     createEntity,
     findEntityOrThrow,
@@ -10,16 +9,18 @@ import {
     updateEntity,
     validEmail,
 } from '@/util/typeorm';
-import { ResponseType } from '../SharedTypes';
-import { UserInputType } from './UserTypes';
-import { MyContext } from '@/global';
-import { salt } from '@/constants';
+
+import { User } from '@/entities/User';
+import { UserInputType, UserResponseType } from './UserTypes';
+import { MyContext, TokenDecoded } from '@/global';
+import { cookieConfig } from '@/constants';
+import { AuthMiddleware } from '@/middlewares/Auth';
 
 @Resolver()
 export class UserResolver {
-    @Mutation(() => ResponseType)
-    async register(@Arg('data') data: UserInputType): Promise<ResponseType> {
-        data.password = bcrypt.hashSync(data.password, salt);
+    @Mutation(() => UserResponseType)
+    async register(@Arg('data') data: UserInputType): Promise<UserResponseType> {
+        data.password = bcrypt.hashSync(data.password);
         let error = await validEmail(User, data.email);
         if (error) return { errors: [error] };
         let user = createEntity(User, data);
@@ -30,15 +31,24 @@ export class UserResolver {
     async login(
         @Arg('email') email: string,
         @Arg('password') password: string,
-        @Ctx() { req }: MyContext,
+        @Ctx() { req, res }: MyContext,
     ): Promise<User> {
-        console.log(req.cookies, req.signedCookies, req.session);
+        console.log(req.cookies, req.signedCookies);
         let user = await findEntityOrThrow(User, undefined, {
             where: { email },
         });
         let result = await bcrypt.compare(password, user.password);
         if (!result) throw new Error('User not found');
-        req.session.userId = user.id;
+
+        let tokenData: TokenDecoded = { userId: user.id };
+        let token = sign(tokenData, process.env.jwt_secret!);
+        res.cookie('token', token, cookieConfig);
+        return user;
+    }
+
+    @Query(() => User)
+    @UseMiddleware(AuthMiddleware)
+    me(@Ctx() { user }: MyContext): User {
         return user;
     }
 
@@ -54,11 +64,11 @@ export class UserResolver {
         return user;
     }
 
-    @Mutation(() => ResponseType)
+    @Mutation(() => UserResponseType)
     async updateUser(
         @Arg('id') id: number,
         @Arg('data') data: UserInputType,
-    ): Promise<ResponseType> {
+    ): Promise<UserResponseType> {
         return updateEntity(User, id, data);
     }
 

@@ -3,10 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { ApolloServer } from 'apollo-server-express';
 import { createConnection, getConnectionOptions } from 'typeorm';
-import session from 'express-session';
-import Redis from 'ioredis';
-import connectRedis from 'connect-redis';
-// var MemoryStore = session.MemoryStore;
+import cookieParser from 'cookie-parser';
 
 import { createSchema } from './util/createSchema';
 import { __prod__ } from './constants';
@@ -17,33 +14,18 @@ const main = async () => {
 
     await createConnection({ ...options, name: 'default' });
     const app = express();
+    app.set('trust proxy', 1);
     app.use(
         cors({
-            origin: ['http://localhost:3000', 'https://studio.apollographql.com'],
+            origin: [
+                'http://localhost:3000',
+                'https://studio.apollographql.com',
+                process.env.client_url!,
+            ],
             credentials: true,
         }),
     );
-    let RedisStore = connectRedis(session);
-    let redis = new Redis();
-    app.use(
-        session({
-            name: 'qid',
-            store: new RedisStore({
-                client: redis,
-                disableTouch: true,
-            }),
-            cookie: {
-                maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
-                httpOnly: true,
-                sameSite: 'none', // csrf
-                secure: true, // cookie only works in https
-            },
-            secret: 'awerzjxerlkhqwilejhrjklasehriluh',
-            resave: false,
-            saveUninitialized: false,
-        }),
-    );
-
+    app.use(cookieParser());
     const apolloServer = new ApolloServer({
         schema: await createSchema(),
         context: ({ req, res }) => ({
